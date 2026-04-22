@@ -17,7 +17,7 @@ This document describes **v1 of the public API design**.
 Package naming is not finalized yet. Example:
 
 ```bash
-npm install tethrspark-core
+pnpm add tethrspark-core
 ```
 
 ESM only.
