@@ -136,11 +136,11 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
     data?: Omit<Partial<D>, "prmt">,
     ctx?: Partial<C>,
   ): Promise<PromptResult<D, C>> {
-    const state = {
+    const state: TethrState<D, C> = {
       dat: { ...(data ?? {}), prmt: prompt } as D,
       ctx: { ...(ctx ?? {}) } as C,
       res: [],
-    } satisfies TethrState<D, C>;
+    };
 
     const traces: MiddlewareTrace[] = [];
     const ext: Record<string, unknown> = {};
