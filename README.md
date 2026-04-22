@@ -1,6 +1,7 @@
 # Tethrspark Core
 
 [![CI](https://github.com/Tethrspark/Core/actions/workflows/ci.yml/badge.svg)](https://github.com/Tethrspark/Core/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/Tethrspark/Core/badge.svg?branch=main)](https://coveralls.io/github/Tethrspark/Core?branch=main)
 
 Tethrspark Core is a TypeScript middleware framework for building virtual assistants.
 It runs two middleware phases over a shared mutable state object:
