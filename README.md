@@ -1,10 +1,10 @@
 # Tethrspark Core
 
 Tethrspark Core is a TypeScript middleware framework for building virtual assistants.
-It runs a middleware stack once, in registration order, and shares a mutable state
-object across all middleware.
+It runs two middleware phases over a shared mutable state object:
 
-## Status
+1. `setup` phase
+2. `runtime` phase
 
 This document describes **v1 of the public API design**.
 
@@ -24,31 +24,50 @@ ESM only.
 
 ## Concepts
 
-### Single-pass middleware
+### Two-phase, single-pass execution
 
-- Middleware are traversed exactly once.
-- Execution order matches `.use(...)` registration order.
-- Every middleware is async-capable.
-- Middleware mutate shared state in place.
+- Modules are registered with `.use(...)` in order.
+- On each `.prompt(...)` call:
+  - all `setup` functions run once in registration order
+  - then all `runtime` functions run once in registration order
 - No `next()` function is used.
+- All functions are async-capable.
+- State is mutated in place.
+
+### Capability gating via `provides`/`requires`
+
+Each module may declare:
+
+- `provides: string[]`
+- `requires: string[]`
+
+At `.use(...)` time:
+
+- Every required capability must already exist in the assistant capability list
+  (from earlier modules' `provides`).
+- If any required capability is missing, `.use(...)` throws immediately.
+- Provided capabilities are appended to the assistant capability list.
+
+This guarantees ordering and dependency safety before any prompt runs.
 
 ### State object
 
-Each middleware receives the same state object:
+Each phase function receives the same state object:
 
 ```ts
 interface TethrState<D extends BaseDat, C extends object> {
   dat: D;
   ctx: C;
   res: MiddlewareResponse[];
-  synthesize: boolean; // default false
 }
 ```
 
 - `dat`: prompt-related data that should be persisted with prompt records.
-- `ctx`: computed/contextual data for runtime/debug use only.
+- `ctx`: computed/contextual runtime data.
 - `res`: middleware responses.
-- `synthesize`: if true, a synthesis middleware can create a final merged response.
+
+Core does not include built-in synthesis behavior. Features like synthesis should be
+implemented inside modules.
 
 ---
 
@@ -68,17 +87,11 @@ export interface MiddlewareResponse {
 
 export interface MiddlewareTrace {
   middleware: string;
+  phase: "setup" | "runtime";
   startedAt: number; // epoch ms
   endedAt: number; // epoch ms
   durationMs: number;
   responseCountDelta: number;
-}
-
-export interface SynthesisSelection {
-  selected: MiddlewareResponse[];
-  combinedText: string; // newline-joined selected items
-  usedChars: number;
-  maxChars: number;
 }
 
 export interface TethrState<
@@ -88,16 +101,17 @@ export interface TethrState<
   dat: D;
   ctx: C;
   res: MiddlewareResponse[];
-  synthesize: boolean;
 }
 
 export interface MiddlewareTools<D extends BaseDat, C extends object> {
   name: string;
+  capabilities: readonly string[];
+  ext: Record<string, unknown>; // shared extension surface for setup/runtime modules
   respond: (text: string, score?: number) => void;
-  selectForSynthesis: (maxChars?: number) => SynthesisSelection;
+  setOutput: (output: string | Uint8Array) => void;
 }
 
-export type Middleware<
+export type MiddlewareFn<
   D extends BaseDat = BaseDat,
   C extends object = Record<string, unknown>
 > = (
@@ -110,17 +124,19 @@ export interface TethrModule<
   C extends object = Record<string, unknown>
 > {
   name: string;
-  run: Middleware<D, C>;
+  provides?: string[];
+  requires?: string[];
+  setup?: MiddlewareFn<D, C>;
+  runtime?: MiddlewareFn<D, C>;
 }
 
 export interface TethrOptions {
-  synthesisMaxChars?: number; // default 4000
   clampScores?: boolean; // default true
 }
 
 export interface PromptResult<D extends BaseDat, C extends object> {
-  state: TethrState<D, C>;
-  output: string;
+  output: string | Uint8Array;
+  state: TethrState<D, C>; // full final state
   traces: MiddlewareTrace[];
 }
 ```
@@ -147,11 +163,15 @@ export function createTethr<
 
 ### `.use(...)`
 
-`.use(...)` accepts a **module instance** (typically returned by a module factory).
+`.use(...)` accepts a module instance (typically returned by a module factory):
 
 ```ts
-assistant.use(myModule({ options })).use(myOtherModule());
+assistant
+  .use(myModule({ options }))
+  .use(myOtherModule());
 ```
+
+If a module declares missing `requires`, `.use(...)` throws a dependency error.
 
 ---
 
@@ -162,42 +182,24 @@ assistant.use(myModule({ options })).use(myOtherModule());
 - `dat = { ...data, prmt: prompt }`
 - `ctx = { ...ctx }`
 - `res = []`
-- `synthesize = false`
 
 Then it:
 
-1. Runs each registered module once in order.
-2. Captures middleware timing traces.
-3. Returns output:
-   - if `synthesize === false`: newline-joined `res[].text`
-   - if `synthesize === true`: output depends on middleware responses (typically a synthesizer module adds final text as a response)
-
----
-
-## Synthesis behavior
-
-Synthesis is middleware-driven:
-
-- Any middleware may set `state.synthesize = true`.
-- A synthesis module may call `selectForSynthesis(maxChars?)`.
-- Selection uses character budget and preserves at least one response per middleware when available.
-
-### Selection algorithm
-
-1. Group responses by `middleware`.
-2. Pick highest-scoring response from each non-empty group.
-3. Fill remaining budget with other responses by descending score.
-4. Return newline-joined `combinedText`.
-5. Do not apply score-threshold dropping.
-
-If a middleware emits no responses, it has nothing to preserve.
+1. Runs all registered `setup` functions in order.
+2. Runs all registered `runtime` functions in order.
+3. Returns:
+   - `output`: explicit value set by any middleware via `tools.setOutput(...)`,
+     otherwise newline-joined `state.res[].text`
+   - `state`: full final mutable state object
+   - `traces`: per-module per-phase timing metadata
 
 ---
 
 ## Error behavior
 
 - Execution is fail-fast.
-- If a middleware throws, prompt execution stops and the error is surfaced.
+- If a phase function throws, prompt execution stops and the error is surfaced.
+- Missing capabilities throw during `.use(...)` registration.
 - No lifecycle hooks are defined in v1.
 
 ---
@@ -210,57 +212,57 @@ import { createTethr, type TethrModule } from "tethrspark-core";
 type Dat = { prmt: string; sentAt?: string; replyToId?: string };
 type Ctx = { intent?: string };
 
-function intentModule(): TethrModule<Dat, Ctx> {
+function synthesisModule(maxChars = 2500): TethrModule<Dat, Ctx> {
   return {
-    name: "intent",
-    async run(state, { respond }) {
-      state.ctx.intent = "support";
-      respond("Detected support intent.", 0.7);
+    name: "synthesis",
+    provides: ["synthesis"],
+    setup(state, tools) {
+      state.ctx.intent = state.ctx.intent ?? "unknown";
+      tools.ext.synthEnabled = false;
+      tools.ext.selectForSynthesis = () => {
+        const sorted = [...state.res].sort((a, b) => b.score - a.score);
+        let used = 0;
+        const selected: string[] = [];
+        for (const item of sorted) {
+          if (used + item.text.length > maxChars) continue;
+          selected.push(item.text);
+          used += item.text.length;
+        }
+        return selected.join("\n");
+      };
+    },
+    runtime(_state, tools) {
+      if (!tools.ext.synthEnabled) return;
+      const select = tools.ext.selectForSynthesis as (() => string) | undefined;
+      if (!select) return;
+      tools.setOutput(select());
     },
   };
 }
 
-function factsModule(): TethrModule<Dat, Ctx> {
+function decisionModule(): TethrModule<Dat, Ctx> {
   return {
-    name: "facts",
-    async run(_state, { respond }) {
-      respond("Refunds are available within 30 days.", 0.9);
-      respond("VIP customers can receive expedited processing.", 0.6);
+    name: "decision",
+    requires: ["synthesis"],
+    runtime(state, tools) {
+      if (state.dat.prmt.includes("summarize")) {
+        tools.ext.synthEnabled = true;
+      }
+      tools.respond("Detected intent from decision module.", 0.7);
     },
   };
 }
 
-function synthModule(maxChars = 2500): TethrModule<Dat, Ctx> {
-  return {
-    name: "synth",
-    async run(state, { respond, selectForSynthesis }) {
-      if (!state.synthesize) return;
-
-      const selected = selectForSynthesis(maxChars);
-      const finalText = `Synthesized reply:\n${selected.combinedText}`;
-      respond(finalText, 1);
-    },
-  };
-}
-
-const assistant = createTethr<Dat, Ctx>({ synthesisMaxChars: 3000 })
-  .use(intentModule())
-  .use(factsModule())
-  .use(synthModule());
+const assistant = createTethr<Dat, Ctx>()
+  .use(synthesisModule())
+  .use(decisionModule());
 
 const result = await assistant.prompt(
-  "Can I get a refund?",
+  "summarize this thread",
   { sentAt: new Date().toISOString() },
   {}
 );
 
-console.log(result.output);
+console.log(result.output); // final output payload
+console.log(result.state); // full internal state for app-level usage
 ```
-
----
-
-## Planned clarifications for next revision
-
-- Whether framework should include an optional built-in synthesizer helper.
-- Exact score clamping semantics (`respond` input validation behavior).
-- Whether final output should distinguish synthesized vs non-synthesized responses in metadata.
