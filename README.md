@@ -1,5 +1,7 @@
 # Tethrspark Core
 
+[![CI](https://github.com/Tethrspark/Core/actions/workflows/ci.yml/badge.svg)](https://github.com/Tethrspark/Core/actions/workflows/ci.yml)
+
 Tethrspark Core is a TypeScript middleware framework for building virtual assistants.
 It runs two middleware phases over a shared mutable state object:
 
@@ -19,6 +21,14 @@ npm install tethrspark-core
 ```
 
 ESM only.
+
+---
+
+## Examples
+
+- [Examples overview](./examples/README.md)
+- [Minimal example](./examples/minimal.ts)
+- [Capabilities example](./examples/capabilities.ts)
 
 ---
 
