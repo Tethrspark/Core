@@ -1,0 +1,44 @@
+{
+  "name": "tethrspark-core",
+  "version": "0.1.0",
+  "description": "TypeScript middleware framework for virtual assistants",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tethrspark/Core.git"
+  },
+  "keywords": [
+    "middleware",
+    "assistant",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Tethrspark/Core/issues"
+  },
+  "homepage": "https://github.com/Tethrspark/Core#readme",
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.5",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
