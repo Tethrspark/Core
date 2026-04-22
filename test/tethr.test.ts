@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  MissingCapabilityError,
   createTethr,
+  TethrDependencyError,
   type TethrModule,
 } from "../src/index.js";
 
@@ -89,11 +89,9 @@ describe("createTethr", () => {
       runtime: () => undefined,
     };
 
-    expect(() => assistant.use(requiresSynth)).toThrowError(
-      MissingCapabilityError
-    );
+    expect(() => assistant.use(requiresSynth)).toThrowError(TethrDependencyError);
     expect(() => assistant.use(requiresSynth)).toThrow(
-      /requires capability "synthesis"/
+      /requires capabilities/
     );
   });
 

@@ -70,7 +70,7 @@ export interface Tethr<D extends BaseDat, C extends object> {
   ): Promise<PromptResult<D, C>>;
 }
 
-export class TethrDependencyError extends Error {
+export class MissingCapabilityError extends Error {
   public readonly module: string;
   public readonly missing: string[];
   public readonly requires: string[];
@@ -84,7 +84,7 @@ export class TethrDependencyError extends Error {
   }) {
     const message = `Module "${args.module}" requires capabilities [${args.requires.join(", ")}], missing [${args.missing.join(", ")}]. Registered capabilities: [${args.capabilities.join(", ")}]`;
     super(message);
-    this.name = "TethrDependencyError";
+    this.name = "MissingCapabilityError";
     this.module = args.module;
     this.missing = args.missing;
     this.requires = args.requires;
@@ -113,7 +113,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
     const requires = module.requires ?? [];
     const missing = requires.filter((capability) => !this.capabilitySet.has(capability));
     if (missing.length > 0) {
-      throw new TethrDependencyError({
+      throw new MissingCapabilityError({
         module: module.name,
         missing,
         requires,
@@ -215,3 +215,6 @@ export function createTethr<
 >(options?: TethrOptions): Tethr<D, C> {
   return new TethrImpl<D, C>(options);
 }
+
+// Backward-friendly alias for the dependency registration error type.
+export { MissingCapabilityError as TethrDependencyError };
