@@ -27,10 +27,14 @@ export interface TethrState<
   res: MiddlewareResponse[];
 }
 
-export interface MiddlewareTools<D extends BaseDat, C extends object> {
+export interface MiddlewareModule<D extends BaseDat, C extends object> {
   name: string;
   capabilities: readonly string[];
-  ext: Record<string, unknown>;
+  share: Record<string, unknown>;
+}
+
+export interface MiddlewareTools {
+  [key: string]: unknown;
   respond: (text: string, score?: number) => void;
   setOutput: (output: string | Uint8Array) => void;
 }
@@ -38,7 +42,11 @@ export interface MiddlewareTools<D extends BaseDat, C extends object> {
 export type MiddlewareFn<
   D extends BaseDat = BaseDat,
   C extends object = Record<string, unknown>,
-> = (state: TethrState<D, C>, tools: MiddlewareTools<D, C>) => void | Promise<void>;
+> = (
+  state: TethrState<D, C>,
+  module: MiddlewareModule<D, C>,
+  tools: MiddlewareTools,
+) => void | Promise<void>;
 
 export interface TethrModule<
   D extends BaseDat = BaseDat,
@@ -143,34 +151,64 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
     };
 
     const traces: MiddlewareTrace[] = [];
-    const ext: Record<string, unknown> = {};
+    const share: Record<string, unknown> = {};
+    const tools = {} as MiddlewareTools;
     let output: string | Uint8Array | undefined;
+    let activeModuleName: string | undefined;
 
-    const createTools = (moduleName: string): MiddlewareTools<D, C> => ({
+    const coreModules: Array<{ name: string; setup: () => void }> = [
+      {
+        name: "core/respond",
+        setup: () => {
+          tools.respond = (text: string, score = 1): void => {
+            if (!activeModuleName) {
+              throw new Error('Tool "respond" called outside middleware execution');
+            }
+
+            const normalizedScore = this.options.clampScores
+              ? Math.max(0, Math.min(1, score))
+              : score;
+
+            state.res.push({
+              middleware: activeModuleName,
+              score: normalizedScore,
+              text,
+            });
+          };
+        },
+      },
+      {
+        name: "core/set-output",
+        setup: () => {
+          tools.setOutput = (nextOutput): void => {
+            output = nextOutput;
+          };
+        },
+      },
+    ];
+
+    const createModule = (moduleName: string): MiddlewareModule<D, C> => ({
       name: moduleName,
       capabilities: [...this.capabilityList],
-      ext,
-      respond: (text: string, score = 1): void => {
-        const normalizedScore = this.options.clampScores
-          ? Math.max(0, Math.min(1, score))
-          : score;
-
-        state.res.push({
-          middleware: moduleName,
-          score: normalizedScore,
-          text,
-        });
-      },
-      setOutput: (nextOutput): void => {
-        output = nextOutput;
-      },
+      share,
     });
+
+    for (const coreModule of coreModules) {
+      activeModuleName = coreModule.name;
+      coreModule.setup();
+    }
+    activeModuleName = undefined;
 
     for (const module of this.modules) {
       if (!module.setup) continue;
       const startedAt = Date.now();
       const beforeCount = state.res.length;
-      await module.setup(state, createTools(module.name));
+      activeModuleName = module.name;
+      try {
+        await module.setup(state, createModule(module.name), tools);
+      } finally {
+        activeModuleName = undefined;
+      }
       const endedAt = Date.now();
       traces.push({
         middleware: module.name,
@@ -186,7 +224,12 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       if (!module.runtime) continue;
       const startedAt = Date.now();
       const beforeCount = state.res.length;
-      await module.runtime(state, createTools(module.name));
+      activeModuleName = module.name;
+      try {
+        await module.runtime(state, createModule(module.name), tools);
+      } finally {
+        activeModuleName = undefined;
+      }
       const endedAt = Date.now();
       traces.push({
         middleware: module.name,
