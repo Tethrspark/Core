@@ -27,13 +27,13 @@ export interface TethrState<
   res: MiddlewareResponse[];
 }
 
-export interface MiddlewareMod<D extends BaseDat, C extends object> {
+export interface MiddlewareModule<D extends BaseDat, C extends object> {
   name: string;
   capabilities: readonly string[];
   share: Record<string, unknown>;
 }
 
-export interface MiddlewareT {
+export interface MiddlewareTools {
   [key: string]: unknown;
   respond: (text: string, score?: number) => void;
   setOutput: (output: string | Uint8Array) => void;
@@ -44,8 +44,8 @@ export type MiddlewareFn<
   C extends object = Record<string, unknown>,
 > = (
   state: TethrState<D, C>,
-  mod: MiddlewareMod<D, C>,
-  t: MiddlewareT,
+  module: MiddlewareModule<D, C>,
+  tools: MiddlewareTools,
 ) => void | Promise<void>;
 
 export interface TethrModule<
@@ -152,7 +152,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
 
     const traces: MiddlewareTrace[] = [];
     const share: Record<string, unknown> = {};
-    const t = {} as MiddlewareT;
+    const tools = {} as MiddlewareTools;
     let output: string | Uint8Array | undefined;
     let activeModuleName: string | undefined;
 
@@ -160,7 +160,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       {
         name: "core/respond",
         setup: () => {
-          t.respond = (text: string, score = 1): void => {
+          tools.respond = (text: string, score = 1): void => {
             if (!activeModuleName) {
               throw new Error('Tool "respond" called outside middleware execution');
             }
@@ -180,14 +180,14 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       {
         name: "core/set-output",
         setup: () => {
-          t.setOutput = (nextOutput): void => {
+          tools.setOutput = (nextOutput): void => {
             output = nextOutput;
           };
         },
       },
     ];
 
-    const createMod = (moduleName: string): MiddlewareMod<D, C> => ({
+    const createModule = (moduleName: string): MiddlewareModule<D, C> => ({
       name: moduleName,
       capabilities: [...this.capabilityList],
       share,
@@ -205,7 +205,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       const beforeCount = state.res.length;
       activeModuleName = module.name;
       try {
-        await module.setup(state, createMod(module.name), t);
+        await module.setup(state, createModule(module.name), tools);
       } finally {
         activeModuleName = undefined;
       }
@@ -226,7 +226,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       const beforeCount = state.res.length;
       activeModuleName = module.name;
       try {
-        await module.runtime(state, createMod(module.name), t);
+        await module.runtime(state, createModule(module.name), tools);
       } finally {
         activeModuleName = undefined;
       }

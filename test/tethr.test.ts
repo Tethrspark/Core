@@ -24,7 +24,7 @@ describe("createTethr", () => {
         callOrder.push("m1:setup");
         state.ctx.marks = ["m1-setup"];
       },
-      runtime: async (state, _mod, t) => {
+      runtime: async (state, _module, t) => {
         callOrder.push("m1:runtime");
         state.ctx.marks?.push("m1-runtime");
         t.respond("from m1");
@@ -37,7 +37,7 @@ describe("createTethr", () => {
         callOrder.push("m2:setup");
         state.ctx.marks?.push("m2-setup");
       },
-      runtime: async (state, _mod, t) => {
+      runtime: async (state, _module, t) => {
         callOrder.push("m2:runtime");
         state.ctx.marks?.push("m2-runtime");
         t.respond("from m2", 0.6);
@@ -105,8 +105,8 @@ describe("createTethr", () => {
     const consumer: TethrModule = {
       name: "consumer",
       requires: ["synthesis"],
-      runtime: (_state, mod, t) => {
-        expect(mod.capabilities).toContain("synthesis");
+      runtime: (_state, m, t) => {
+        expect(m.capabilities).toContain("synthesis");
         t.respond("consumer ran");
       },
     };
@@ -118,7 +118,7 @@ describe("createTethr", () => {
   it("returns full state and uses explicit output when setOutput is called", async () => {
     const module: TethrModule<Dat, Ctx> = {
       name: "output-setter",
-      runtime: (state, _mod, t) => {
+      runtime: (state, _module, t) => {
         state.ctx.marks = ["seen"];
         t.respond("intermediate");
         t.setOutput("final-output");
@@ -141,7 +141,7 @@ describe("createTethr", () => {
 
     const module: TethrModule = {
       name: "binary",
-      runtime: (_state, _mod, t) => {
+      runtime: (_state, _module, t) => {
         t.setOutput(bytes);
       },
     };
@@ -153,7 +153,7 @@ describe("createTethr", () => {
   it("clamps scores by default and can disable clamping", async () => {
     const module: TethrModule = {
       name: "scoring",
-      runtime: (_state, _mod, t) => {
+      runtime: (_state, _module, t) => {
         t.respond("low", -4);
         t.respond("high", 9);
       },

@@ -114,13 +114,13 @@ export interface TethrState<
   res: MiddlewareResponse[];
 }
 
-export interface MiddlewareMod<D extends BaseDat, C extends object> {
+export interface MiddlewareModule<D extends BaseDat, C extends object> {
   name: string;
   capabilities: readonly string[];
   share: Record<string, unknown>; // shared data surface for setup/runtime modules
 }
 
-export interface MiddlewareT {
+export interface MiddlewareTools {
   [key: string]: unknown;
   respond: (text: string, score?: number) => void;
   setOutput: (output: string | Uint8Array) => void;
@@ -131,8 +131,8 @@ export type MiddlewareFn<
   C extends object = Record<string, unknown>
 > = (
   state: TethrState<D, C>,
-  mod: MiddlewareMod<D, C>,
-  t: MiddlewareT
+  module: MiddlewareModule<D, C>,
+  tools: MiddlewareTools
 ) => void | Promise<void>;
 
 export interface TethrModule<
@@ -204,7 +204,7 @@ Then it:
 1. Runs all registered `setup` functions in order.
 2. Runs all registered `runtime` functions in order.
 3. Returns:
-   - `output`: explicit value set by any middleware via `t.setOutput(...)`,
+   - `output`: explicit value set by any middleware via `tools.setOutput(...)`,
      otherwise newline-joined `state.res[].text`
    - `state`: full final mutable state object
    - `traces`: per-module per-phase timing metadata
@@ -232,11 +232,11 @@ function synthesisModule(maxChars = 2500): TethrModule<Dat, Ctx> {
   return {
     name: "synthesis",
     provides: ["synthesis"],
-    setup(state, mod) {
-      state.ctx.intent = state.ctx.intent ?? "unknown";
-      mod.share.synthEnabled = false;
-      mod.share.selectForSynthesis = () => {
-        const sorted = [...state.res].sort((a, b) => b.score - a.score);
+    setup(s, m) {
+      s.ctx.intent = s.ctx.intent ?? "unknown";
+      m.share.synthEnabled = false;
+      m.share.selectForSynthesis = () => {
+        const sorted = [...s.res].sort((a, b) => b.score - a.score);
         let used = 0;
         const selected: string[] = [];
         for (const item of sorted) {
@@ -247,11 +247,11 @@ function synthesisModule(maxChars = 2500): TethrModule<Dat, Ctx> {
         return selected.join("\n");
       };
     },
-    runtime(_state, mod, t) {
-      if (!mod.share.synthEnabled) return;
-      const select = mod.share.selectForSynthesis as (() => string) | undefined;
+    runtime(_s, m, tools) {
+      if (!m.share.synthEnabled) return;
+      const select = m.share.selectForSynthesis as (() => string) | undefined;
       if (!select) return;
-      t.setOutput(select());
+      tools.setOutput(select());
     },
   };
 }
@@ -260,11 +260,11 @@ function decisionModule(): TethrModule<Dat, Ctx> {
   return {
     name: "decision",
     requires: ["synthesis"],
-    runtime(state, mod, t) {
-      if (state.dat.prmt.includes("summarize")) {
-        mod.share.synthEnabled = true;
+    runtime(s, m, tools) {
+      if (s.dat.prmt.includes("summarize")) {
+        m.share.synthEnabled = true;
       }
-      t.respond("Detected intent from decision module.", 0.7);
+      tools.respond("Detected intent from decision module.", 0.7);
     },
   };
 }

@@ -11,15 +11,12 @@ type Ctx = {
 function intentProvider(): TethrModule<Dat, Ctx> {
   return {
     name: "intent-provider",
-    provides: ["intent", "respond-tool", "set-output-tool"],
-    setup: (_state, mod, t) => {
-      mod.share.setIntent = (intent: string) => {
-        mod.share.intent = intent;
+    provides: ["intent"],
+    setup: (_s, m, _t) => {
+      m.share.setIntent = (intent: string) => {
+        m.share.intent = intent;
       };
-      mod.share.getIntent = () => mod.share.intent as string | undefined;
-      // Core tool modules attach these tool functions onto the shared t object.
-      t.respond = t.respond;
-      t.setOutput = t.setOutput;
+      m.share.getIntent = () => m.share.intent as string | undefined;
     },
   };
 }
@@ -28,13 +25,13 @@ function intentDetector(): TethrModule<Dat, Ctx> {
   return {
     name: "intent-detector",
     requires: ["intent"],
-    runtime: (state, mod, t) => {
-      const setIntent = mod.share.setIntent as ((intent: string) => void) | undefined;
+    runtime: (s, m, t) => {
+      const setIntent = m.share.setIntent as ((intent: string) => void) | undefined;
       if (!setIntent) return;
 
-      const intent = state.dat.prmt.includes("refund") ? "refund-support" : "general";
+      const intent = s.dat.prmt.includes("refund") ? "refund-support" : "general";
       setIntent(intent);
-      state.ctx.intent = intent;
+      s.ctx.intent = intent;
       t.respond(`Intent detected: ${intent}`, 0.8);
     },
   };
@@ -44,8 +41,8 @@ function responder(): TethrModule<Dat, Ctx> {
   return {
     name: "responder",
     requires: ["intent"],
-    runtime: (_state, mod, t) => {
-      const getIntent = mod.share.getIntent as (() => string | undefined) | undefined;
+    runtime: (_s, m, t) => {
+      const getIntent = m.share.getIntent as (() => string | undefined) | undefined;
       const intent = getIntent?.() ?? "unknown";
       t.setOutput(`Handled prompt with intent: ${intent}`);
     },
