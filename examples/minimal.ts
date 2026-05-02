@@ -14,11 +14,11 @@ const taggingModule: TethrModule<Dat, Ctx> = {
   setup: (state) => {
     state.ctx.tags = [];
   },
-  runtime: (state, mod) => {
+  runtime: (state, _mod, t) => {
     if (state.dat.prmt.includes("?")) {
       state.ctx.tags?.push("question");
     }
-    mod.respond(`You asked: ${state.dat.prmt}`);
+    t.respond(`You asked: ${state.dat.prmt}`);
   },
 };
 

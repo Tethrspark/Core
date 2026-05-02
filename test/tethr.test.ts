@@ -24,10 +24,10 @@ describe("createTethr", () => {
         callOrder.push("m1:setup");
         state.ctx.marks = ["m1-setup"];
       },
-      runtime: async (state, mod) => {
+      runtime: async (state, _mod, t) => {
         callOrder.push("m1:runtime");
         state.ctx.marks?.push("m1-runtime");
-        mod.respond("from m1");
+        t.respond("from m1");
       },
     };
 
@@ -37,10 +37,10 @@ describe("createTethr", () => {
         callOrder.push("m2:setup");
         state.ctx.marks?.push("m2-setup");
       },
-      runtime: async (state, mod) => {
+      runtime: async (state, _mod, t) => {
         callOrder.push("m2:runtime");
         state.ctx.marks?.push("m2-runtime");
-        mod.respond("from m2", 0.6);
+        t.respond("from m2", 0.6);
       },
     };
 
@@ -105,9 +105,9 @@ describe("createTethr", () => {
     const consumer: TethrModule = {
       name: "consumer",
       requires: ["synthesis"],
-      runtime: (_state, mod) => {
+      runtime: (_state, mod, t) => {
         expect(mod.capabilities).toContain("synthesis");
-        mod.respond("consumer ran");
+        t.respond("consumer ran");
       },
     };
 
@@ -118,10 +118,10 @@ describe("createTethr", () => {
   it("returns full state and uses explicit output when setOutput is called", async () => {
     const module: TethrModule<Dat, Ctx> = {
       name: "output-setter",
-      runtime: (state, mod) => {
+      runtime: (state, _mod, t) => {
         state.ctx.marks = ["seen"];
-        mod.respond("intermediate");
-        mod.setOutput("final-output");
+        t.respond("intermediate");
+        t.setOutput("final-output");
       },
     };
 
@@ -141,8 +141,8 @@ describe("createTethr", () => {
 
     const module: TethrModule = {
       name: "binary",
-      runtime: (_state, mod) => {
-        mod.setOutput(bytes);
+      runtime: (_state, _mod, t) => {
+        t.setOutput(bytes);
       },
     };
 
@@ -153,9 +153,9 @@ describe("createTethr", () => {
   it("clamps scores by default and can disable clamping", async () => {
     const module: TethrModule = {
       name: "scoring",
-      runtime: (_state, mod) => {
-        mod.respond("low", -4);
-        mod.respond("high", 9);
+      runtime: (_state, _mod, t) => {
+        t.respond("low", -4);
+        t.respond("high", 9);
       },
     };
 

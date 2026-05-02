@@ -118,6 +118,10 @@ export interface MiddlewareMod<D extends BaseDat, C extends object> {
   name: string;
   capabilities: readonly string[];
   share: Record<string, unknown>; // shared data surface for setup/runtime modules
+}
+
+export interface MiddlewareT {
+  [key: string]: unknown;
   respond: (text: string, score?: number) => void;
   setOutput: (output: string | Uint8Array) => void;
 }
@@ -127,7 +131,8 @@ export type MiddlewareFn<
   C extends object = Record<string, unknown>
 > = (
   state: TethrState<D, C>,
-  mod: MiddlewareMod<D, C>
+  mod: MiddlewareMod<D, C>,
+  t: MiddlewareT
 ) => void | Promise<void>;
 
 export interface TethrModule<
@@ -199,7 +204,7 @@ Then it:
 1. Runs all registered `setup` functions in order.
 2. Runs all registered `runtime` functions in order.
 3. Returns:
-   - `output`: explicit value set by any middleware via `mod.setOutput(...)`,
+   - `output`: explicit value set by any middleware via `t.setOutput(...)`,
      otherwise newline-joined `state.res[].text`
    - `state`: full final mutable state object
    - `traces`: per-module per-phase timing metadata
@@ -242,11 +247,11 @@ function synthesisModule(maxChars = 2500): TethrModule<Dat, Ctx> {
         return selected.join("\n");
       };
     },
-    runtime(_state, mod) {
+    runtime(_state, mod, t) {
       if (!mod.share.synthEnabled) return;
       const select = mod.share.selectForSynthesis as (() => string) | undefined;
       if (!select) return;
-      mod.setOutput(select());
+      t.setOutput(select());
     },
   };
 }
@@ -255,11 +260,11 @@ function decisionModule(): TethrModule<Dat, Ctx> {
   return {
     name: "decision",
     requires: ["synthesis"],
-    runtime(state, mod) {
+    runtime(state, mod, t) {
       if (state.dat.prmt.includes("summarize")) {
         mod.share.synthEnabled = true;
       }
-      mod.respond("Detected intent from decision module.", 0.7);
+      t.respond("Detected intent from decision module.", 0.7);
     },
   };
 }
