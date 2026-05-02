@@ -12,11 +12,11 @@ function intentProvider(): TethrModule<Dat, Ctx> {
   return {
     name: "intent-provider",
     provides: ["intent"],
-    setup: (_state, tools) => {
-      tools.ext.setIntent = (intent: string) => {
-        tools.ext.intent = intent;
+    setup: (_state, mod) => {
+      mod.share.setIntent = (intent: string) => {
+        mod.share.intent = intent;
       };
-      tools.ext.getIntent = () => tools.ext.intent as string | undefined;
+      mod.share.getIntent = () => mod.share.intent as string | undefined;
     },
   };
 }
@@ -25,14 +25,14 @@ function intentDetector(): TethrModule<Dat, Ctx> {
   return {
     name: "intent-detector",
     requires: ["intent"],
-    runtime: (state, tools) => {
-      const setIntent = tools.ext.setIntent as ((intent: string) => void) | undefined;
+    runtime: (state, mod) => {
+      const setIntent = mod.share.setIntent as ((intent: string) => void) | undefined;
       if (!setIntent) return;
 
       const intent = state.dat.prmt.includes("refund") ? "refund-support" : "general";
       setIntent(intent);
       state.ctx.intent = intent;
-      tools.respond(`Intent detected: ${intent}`, 0.8);
+      mod.respond(`Intent detected: ${intent}`, 0.8);
     },
   };
 }
@@ -41,10 +41,10 @@ function responder(): TethrModule<Dat, Ctx> {
   return {
     name: "responder",
     requires: ["intent"],
-    runtime: (_state, tools) => {
-      const getIntent = tools.ext.getIntent as (() => string | undefined) | undefined;
+    runtime: (_state, mod) => {
+      const getIntent = mod.share.getIntent as (() => string | undefined) | undefined;
       const intent = getIntent?.() ?? "unknown";
-      tools.setOutput(`Handled prompt with intent: ${intent}`);
+      mod.setOutput(`Handled prompt with intent: ${intent}`);
     },
   };
 }

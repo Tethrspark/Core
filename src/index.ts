@@ -27,10 +27,10 @@ export interface TethrState<
   res: MiddlewareResponse[];
 }
 
-export interface MiddlewareTools<D extends BaseDat, C extends object> {
+export interface MiddlewareMod<D extends BaseDat, C extends object> {
   name: string;
   capabilities: readonly string[];
-  ext: Record<string, unknown>;
+  share: Record<string, unknown>;
   respond: (text: string, score?: number) => void;
   setOutput: (output: string | Uint8Array) => void;
 }
@@ -38,7 +38,7 @@ export interface MiddlewareTools<D extends BaseDat, C extends object> {
 export type MiddlewareFn<
   D extends BaseDat = BaseDat,
   C extends object = Record<string, unknown>,
-> = (state: TethrState<D, C>, tools: MiddlewareTools<D, C>) => void | Promise<void>;
+> = (state: TethrState<D, C>, mod: MiddlewareMod<D, C>) => void | Promise<void>;
 
 export interface TethrModule<
   D extends BaseDat = BaseDat,
@@ -143,13 +143,13 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
     };
 
     const traces: MiddlewareTrace[] = [];
-    const ext: Record<string, unknown> = {};
+    const share: Record<string, unknown> = {};
     let output: string | Uint8Array | undefined;
 
-    const createTools = (moduleName: string): MiddlewareTools<D, C> => ({
+    const createMod = (moduleName: string): MiddlewareMod<D, C> => ({
       name: moduleName,
       capabilities: [...this.capabilityList],
-      ext,
+      share,
       respond: (text: string, score = 1): void => {
         const normalizedScore = this.options.clampScores
           ? Math.max(0, Math.min(1, score))
@@ -170,7 +170,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       if (!module.setup) continue;
       const startedAt = Date.now();
       const beforeCount = state.res.length;
-      await module.setup(state, createTools(module.name));
+      await module.setup(state, createMod(module.name));
       const endedAt = Date.now();
       traces.push({
         middleware: module.name,
@@ -186,7 +186,7 @@ class TethrImpl<D extends BaseDat, C extends object> implements Tethr<D, C> {
       if (!module.runtime) continue;
       const startedAt = Date.now();
       const beforeCount = state.res.length;
-      await module.runtime(state, createTools(module.name));
+      await module.runtime(state, createMod(module.name));
       const endedAt = Date.now();
       traces.push({
         middleware: module.name,
@@ -215,6 +215,12 @@ export function createTethr<
 >(options?: TethrOptions): Tethr<D, C> {
   return new TethrImpl<D, C>(options);
 }
+
+// Backward-friendly alias for middleware helper typing.
+export type MiddlewareTools<
+  D extends BaseDat = BaseDat,
+  C extends object = Record<string, unknown>,
+> = MiddlewareMod<D, C>;
 
 // Backward-friendly alias for the dependency registration error type.
 export { MissingCapabilityError as TethrDependencyError };

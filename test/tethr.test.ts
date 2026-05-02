@@ -24,10 +24,10 @@ describe("createTethr", () => {
         callOrder.push("m1:setup");
         state.ctx.marks = ["m1-setup"];
       },
-      runtime: async (state, tools) => {
+      runtime: async (state, mod) => {
         callOrder.push("m1:runtime");
         state.ctx.marks?.push("m1-runtime");
-        tools.respond("from m1");
+        mod.respond("from m1");
       },
     };
 
@@ -37,10 +37,10 @@ describe("createTethr", () => {
         callOrder.push("m2:setup");
         state.ctx.marks?.push("m2-setup");
       },
-      runtime: async (state, tools) => {
+      runtime: async (state, mod) => {
         callOrder.push("m2:runtime");
         state.ctx.marks?.push("m2-runtime");
-        tools.respond("from m2", 0.6);
+        mod.respond("from m2", 0.6);
       },
     };
 
@@ -105,9 +105,9 @@ describe("createTethr", () => {
     const consumer: TethrModule = {
       name: "consumer",
       requires: ["synthesis"],
-      runtime: (_state, tools) => {
-        expect(tools.capabilities).toContain("synthesis");
-        tools.respond("consumer ran");
+      runtime: (_state, mod) => {
+        expect(mod.capabilities).toContain("synthesis");
+        mod.respond("consumer ran");
       },
     };
 
@@ -118,10 +118,10 @@ describe("createTethr", () => {
   it("returns full state and uses explicit output when setOutput is called", async () => {
     const module: TethrModule<Dat, Ctx> = {
       name: "output-setter",
-      runtime: (state, tools) => {
+      runtime: (state, mod) => {
         state.ctx.marks = ["seen"];
-        tools.respond("intermediate");
-        tools.setOutput("final-output");
+        mod.respond("intermediate");
+        mod.setOutput("final-output");
       },
     };
 
@@ -141,8 +141,8 @@ describe("createTethr", () => {
 
     const module: TethrModule = {
       name: "binary",
-      runtime: (_state, tools) => {
-        tools.setOutput(bytes);
+      runtime: (_state, mod) => {
+        mod.setOutput(bytes);
       },
     };
 
@@ -153,9 +153,9 @@ describe("createTethr", () => {
   it("clamps scores by default and can disable clamping", async () => {
     const module: TethrModule = {
       name: "scoring",
-      runtime: (_state, tools) => {
-        tools.respond("low", -4);
-        tools.respond("high", 9);
+      runtime: (_state, mod) => {
+        mod.respond("low", -4);
+        mod.respond("high", 9);
       },
     };
 
